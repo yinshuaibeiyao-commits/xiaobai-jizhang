@@ -1,0 +1,21 @@
+appId: com.xiaobai.jizhang
+productName: 小白记账
+directories:
+  output: dist
+files:
+  - out/**
+  - package.json
+asarUnpack:
+  - "**/*.node"
+win:
+  target:
+    - nsis
+  executableName: 小白记账
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  artifactName: ${productName}-${version}-setup.${ext}
+mac:
+  target:
+    - dmg
+  category: public.app-category.finance
