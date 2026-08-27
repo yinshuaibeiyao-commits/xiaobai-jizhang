@@ -1,4 +1,4 @@
-import type { EntryType } from '@shared/types'
+import type { CustomCategory, EntryType } from './types'
 
 export interface CategoryNode {
   name: string
@@ -28,11 +28,23 @@ export const INCOME_CATEGORIES: CategoryNode[] = [
 
 export const ALL_CATEGORIES: CategoryNode[] = [...EXPENSE_CATEGORIES, ...INCOME_CATEGORIES]
 
-export function categoriesFor(type: EntryType): CategoryNode[] {
+export function presetCategoriesFor(type: EntryType): CategoryNode[] {
   return type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES
 }
 
-export function subcategoriesOf(type: EntryType, l1: string): string[] {
-  const node = categoriesFor(type).find((c) => c.name === l1)
+export function presetL1Names(type: EntryType): string[] {
+  return presetCategoriesFor(type).map((c) => c.name)
+}
+
+export function mergedCategories(custom: CustomCategory[]): Record<EntryType, CategoryNode[]> {
+  const toNode = (c: CustomCategory): CategoryNode => ({ name: c.name, children: c.children })
+  return {
+    expense: [...EXPENSE_CATEGORIES, ...custom.filter((c) => c.type === 'expense').map(toNode)],
+    income: [...INCOME_CATEGORIES, ...custom.filter((c) => c.type === 'income').map(toNode)]
+  }
+}
+
+export function subcategoriesOf(list: CategoryNode[], l1: string): string[] {
+  const node = list.find((c) => c.name === l1)
   return node ? node.children : []
 }

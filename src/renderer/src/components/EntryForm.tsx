@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
-import { categoriesFor, subcategoriesOf } from '../categories'
+import { subcategoriesOf } from '@shared/categories'
+import type { CategoryNode } from '@shared/categories'
 import type { EntryType, TransactionInput, Transaction } from '@shared/types'
 
 interface Props {
   editing: Transaction | null
+  categories: Record<EntryType, CategoryNode[]>
   onSubmit: (input: TransactionInput) => Promise<void>
   onCancelEdit: () => void
 }
@@ -15,20 +17,22 @@ function today(): string {
   return `${d.getFullYear()}-${m}-${day}`
 }
 
-export default function EntryForm({ editing, onSubmit, onCancelEdit }: Props): JSX.Element {
+export default function EntryForm({ editing, categories, onSubmit, onCancelEdit }: Props): JSX.Element {
   const [type, setType] = useState<EntryType>('expense')
   const [amount, setAmount] = useState('')
-  const [categoryL1, setCategoryL1] = useState(categoriesFor('expense')[0].name)
-  const [categoryL2, setCategoryL2] = useState(subcategoriesOf('expense', categoriesFor('expense')[0].name)[0])
+  const [categoryL1, setCategoryL1] = useState(categories['expense'][0].name)
+  const [categoryL2, setCategoryL2] = useState(
+    subcategoriesOf(categories['expense'], categories['expense'][0].name)[0]
+  )
   const [date, setDate] = useState(today())
   const [note, setNote] = useState('')
 
   function resetForm(t: EntryType = 'expense'): void {
-    const cats = categoriesFor(t)
+    const cats = categories[t]
     setType(t)
     setAmount('')
     setCategoryL1(cats[0].name)
-    setCategoryL2(subcategoriesOf(t, cats[0].name)[0])
+    setCategoryL2(subcategoriesOf(cats, cats[0].name)[0])
     setDate(today())
     setNote('')
   }
@@ -48,15 +52,15 @@ export default function EntryForm({ editing, onSubmit, onCancelEdit }: Props): J
   }, [editing])
 
   function handleTypeChange(t: EntryType): void {
-    const cats = categoriesFor(t)
+    const cats = categories[t]
     setType(t)
     setCategoryL1(cats[0].name)
-    setCategoryL2(subcategoriesOf(t, cats[0].name)[0])
+    setCategoryL2(subcategoriesOf(cats, cats[0].name)[0])
   }
 
   function handleL1Change(l1: string): void {
     setCategoryL1(l1)
-    setCategoryL2(subcategoriesOf(type, l1)[0])
+    setCategoryL2(subcategoriesOf(categories[type], l1)[0])
   }
 
   async function handleSubmit(e: React.FormEvent): Promise<void> {
@@ -77,8 +81,8 @@ export default function EntryForm({ editing, onSubmit, onCancelEdit }: Props): J
     resetForm(type)
   }
 
-  const cats = categoriesFor(type)
-  const subs = subcategoriesOf(type, categoryL1)
+  const cats = categories[type]
+  const subs = subcategoriesOf(cats, categoryL1)
 
   return (
     <form className="expense-form" onSubmit={handleSubmit}>

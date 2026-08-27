@@ -5,7 +5,11 @@ import {
   createTransaction,
   listTransactions,
   updateTransaction,
-  deleteTransaction
+  deleteTransaction,
+  listCustomCategories,
+  createCustomCategory,
+  updateCustomCategory,
+  deleteCustomCategory
 } from './store'
 
 function createWindow(): void {
@@ -44,6 +48,10 @@ function registerIpcHandlers(): void {
   ipcMain.handle('transaction:list', (_event, filter) => listTransactions(filter))
   ipcMain.handle('transaction:update', (_event, id, input) => updateTransaction(id, input))
   ipcMain.handle('transaction:delete', (_event, id) => deleteTransaction(id))
+  ipcMain.handle('category:list', () => listCustomCategories())
+  ipcMain.handle('category:create', (_event, input) => createCustomCategory(input))
+  ipcMain.handle('category:update', (_event, id, input) => updateCustomCategory(id, input))
+  ipcMain.handle('category:delete', (_event, id) => deleteCustomCategory(id))
 }
 
 app.whenReady().then(() => {

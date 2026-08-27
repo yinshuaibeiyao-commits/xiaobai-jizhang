@@ -1,11 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import EntryForm from './components/EntryForm'
 import EntryList from './components/EntryList'
-import { ALL_CATEGORIES } from './categories'
-import type { EntryType, TransactionFilter, TransactionInput, Transaction } from '@shared/types'
+import CategoryManager from './components/CategoryManager'
+import { ALL_CATEGORIES, mergedCategories } from '@shared/categories'
+import type {
+  EntryType,
+  TransactionFilter,
+  TransactionInput,
+  Transaction,
+  CustomCategory
+} from '@shared/types'
 
 export default function App(): JSX.Element {
   const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [customCategories, setCustomCategories] = useState<CustomCategory[]>([])
   const [editing, setEditing] = useState<Transaction | null>(null)
   const [filterType, setFilterType] = useState<EntryType | ''>('')
   const [filterL1, setFilterL1] = useState('')
@@ -27,9 +35,26 @@ export default function App(): JSX.Element {
     setTransactions(data)
   }, [filter])
 
+  const loadCategories = useCallback(async () => {
+    const data = await window.api.listCustomCategories()
+    setCustomCategories(data)
+  }, [])
+
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    loadCategories()
+  }, [loadCategories])
+
+  const categories = useMemo(() => mergedCategories(customCategories), [customCategories])
+
+  const allL1Names = useMemo(() => {
+    const set = new Set(ALL_CATEGORIES.map((c) => c.name))
+    for (const c of customCategories) set.add(c.name)
+    return Array.from(set)
+  }, [customCategories])
 
   async function handleSubmit(input: TransactionInput): Promise<void> {
     if (editing) {
@@ -46,6 +71,10 @@ export default function App(): JSX.Element {
     await window.api.deleteTransaction(id)
     if (editing?.id === id) setEditing(null)
     await load()
+  }
+
+  async function handleCategoriesChanged(): Promise<void> {
+    await Promise.all([load(), loadCategories()])
   }
 
   const summary = useMemo(() => {
@@ -72,7 +101,12 @@ export default function App(): JSX.Element {
       <main className="app-main">
         <section className="panel">
           <h2>{editing ? '修改记录' : '记一笔'}</h2>
-          <EntryForm editing={editing} onSubmit={handleSubmit} onCancelEdit={() => setEditing(null)} />
+          <EntryForm
+            editing={editing}
+            categories={categories}
+            onSubmit={handleSubmit}
+            onCancelEdit={() => setEditing(null)}
+          />
         </section>
 
         <section className="panel">
@@ -86,9 +120,9 @@ export default function App(): JSX.Element {
               </select>
               <select value={filterL1} onChange={(e) => setFilterL1(e.target.value)}>
                 <option value="">全部分类</option>
-                {ALL_CATEGORIES.map((c) => (
-                  <option key={c.name} value={c.name}>
-                    {c.name}
+                {allL1Names.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
                   </option>
                 ))}
               </select>
@@ -98,6 +132,10 @@ export default function App(): JSX.Element {
             </div>
           </div>
           <EntryList transactions={transactions} onEdit={setEditing} onDelete={handleDelete} />
+        </section>
+
+        <section className="panel">
+          <CategoryManager categories={customCategories} onChange={handleCategoriesChanged} />
         </section>
       </main>
     </div>
