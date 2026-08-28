@@ -6,6 +6,7 @@ interface Props {
   onDelete: (id: string) => void
 }
 
+// 把 YYYY-MM-DD 格式化成「日期 + 周几」；拼 T00:00:00 是防止时区偏移把日期往前/后推一天
 function formatDate(date: string): string {
   const d = new Date(date + 'T00:00:00')
   const week = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()]

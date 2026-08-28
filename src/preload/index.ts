@@ -7,6 +7,7 @@ import type {
   XiaobaiApi
 } from '@shared/types'
 
+// 只把白名单里定义好的方法暴露给渲染进程，而不是直接暴露 ipcRenderer 本身（更安全）
 const api: XiaobaiApi = {
   createTransaction: (input: TransactionInput) => ipcRenderer.invoke('transaction:create', input),
   listTransactions: (filter?: TransactionFilter) =>
@@ -21,4 +22,5 @@ const api: XiaobaiApi = {
   deleteCustomCategory: (id: string) => ipcRenderer.invoke('category:delete', id)
 }
 
+// 把 API 桥挂到 window.api 上，渲染层只通过这些方法与主进程通信
 contextBridge.exposeInMainWorld('api', api)

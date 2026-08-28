@@ -10,6 +10,7 @@ interface Props {
   onCancelEdit: () => void
 }
 
+// 生成今天的日期字符串 YYYY-MM-DD（月份/日期补零），用作表单默认日期
 function today(): string {
   const d = new Date()
   const m = String(d.getMonth() + 1).padStart(2, '0')
@@ -27,6 +28,7 @@ export default function EntryForm({ editing, categories, onSubmit, onCancelEdit 
   const [date, setDate] = useState(today())
   const [note, setNote] = useState('')
 
+  // 把表单重置为初始状态（金额/备注清空、分类和日期回到默认），t 指定重置到支出还是收入
   function resetForm(t: EntryType = 'expense'): void {
     const cats = categories[t]
     setType(t)
@@ -48,6 +50,8 @@ export default function EntryForm({ editing, categories, onSubmit, onCancelEdit 
     } else {
       resetForm('expense')
     }
+    // 只在「编辑对象」变化时重置表单；故意不把 categories/resetForm 纳入依赖，
+    // 否则分类一变（如新增分类后）就会清掉用户正在填的内容
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing])
 
@@ -63,6 +67,7 @@ export default function EntryForm({ editing, categories, onSubmit, onCancelEdit 
     setCategoryL2(subcategoriesOf(categories[type], l1)[0])
   }
 
+  // 提交表单：先校验金额必须是大于 0 的有效数字，再规整到分、交给父组件处理
   async function handleSubmit(e: React.FormEvent): Promise<void> {
     e.preventDefault()
     const value = parseFloat(amount)

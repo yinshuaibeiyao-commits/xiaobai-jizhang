@@ -56,6 +56,7 @@ export default function CategoryManager({ categories, onChange }: Props): JSX.El
     setRows((prev) => prev.filter((_, idx) => idx !== i))
   }
 
+  // 保存分类：先做前端校验（名称/小类非空、不重复），再构造 renames 映射，调 API 新增或更新
   async function handleSave(): Promise<void> {
     const trimmedName = name.trim()
     const children = rows.map((r) => r.value.trim()).filter(Boolean)
@@ -71,6 +72,7 @@ export default function CategoryManager({ categories, onChange }: Props): JSX.El
       window.alert('小类名称不能重复')
       return
     }
+    // 只有「原小类名非空、改名后非空、且确实改了名」的行，才生成「旧名→新名」的改名映射
     const renames = rows
       .filter((r) => r.original && r.value.trim() && r.value.trim() !== r.original)
       .map((r) => ({ from: r.original, to: r.value.trim() }))
@@ -87,6 +89,7 @@ export default function CategoryManager({ categories, onChange }: Props): JSX.El
     }
   }
 
+  // 删除分类：先二次确认，失败时把主进程返回的错误提示给用户
   async function handleDelete(id: string, catName: string): Promise<void> {
     if (!window.confirm(`确定删除分类「${catName}」吗？`)) return
     try {

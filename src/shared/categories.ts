@@ -36,6 +36,7 @@ export function presetL1Names(type: EntryType): string[] {
   return presetCategoriesFor(type).map((c) => c.name)
 }
 
+// 把预置分类和用户自定义分类合并：按类型（支出/收入）分组，自定义分类追加在对应类型的预置分类之后
 export function mergedCategories(custom: CustomCategory[]): Record<EntryType, CategoryNode[]> {
   const toNode = (c: CustomCategory): CategoryNode => ({ name: c.name, children: c.children })
   return {

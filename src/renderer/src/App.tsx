@@ -20,6 +20,7 @@ export default function App(): JSX.Element {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
 
+  // 把筛选条件整理成传给主进程的 filter 对象：空字符串视为「不限」，转成 undefined
   const filter: TransactionFilter = useMemo(
     () => ({
       type: filterType || undefined,
@@ -50,12 +51,14 @@ export default function App(): JSX.Element {
 
   const categories = useMemo(() => mergedCategories(customCategories), [customCategories])
 
+  // 一级分类下拉的候选项：预置分类 + 自定义分类的一级名，去重后返回
   const allL1Names = useMemo(() => {
     const set = new Set(ALL_CATEGORIES.map((c) => c.name))
     for (const c of customCategories) set.add(c.name)
     return Array.from(set)
   }, [customCategories])
 
+  // 提交记账表单：编辑态则更新，否则新增；完成后重新拉取列表
   async function handleSubmit(input: TransactionInput): Promise<void> {
     if (editing) {
       await window.api.updateTransaction(editing.id, input)
@@ -66,6 +69,7 @@ export default function App(): JSX.Element {
     await load()
   }
 
+  // 删除流水：先二次确认，删除后刷新列表；若删的是正在编辑的那条，一并退出编辑态
   async function handleDelete(id: string): Promise<void> {
     if (!window.confirm('确定删除这条记录吗？')) return
     await window.api.deleteTransaction(id)
@@ -77,6 +81,7 @@ export default function App(): JSX.Element {
     await Promise.all([load(), loadCategories()])
   }
 
+  // 汇总当前列表的收支与结余（收入 - 支出），随 transactions 变化自动重算
   const summary = useMemo(() => {
     let income = 0
     let expense = 0

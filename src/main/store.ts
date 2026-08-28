@@ -12,28 +12,34 @@ import type {
   CustomCategoryUpdate
 } from '@shared/types'
 
+// 数据文件里存的内容：全部流水 + 用户自建的自定义分类
 interface StoreData {
   transactions: Transaction[]
   customCategories: CustomCategory[]
 }
 
+// 模块级状态：数据文件路径 + 内存中的流水/自定义分类（进程运行期间常驻内存，增删改后同步落盘）
 let dataPath = ''
 let transactions: Transaction[] = []
 let customCategories: CustomCategory[] = []
 
+// 把金额规整到「分」——四舍五入到 2 位小数，消除浮点误差（例如 0.1 + 0.2 = 0.3000...004）
 function normalizeAmount(amount: number): number {
   return Math.round(amount * 100) / 100
 }
 
+// 把内存数据整体写入本地 JSON 文件（每次增删改后调用，保证数据落盘不丢）
 function persist(): void {
   const data: StoreData = { transactions, customCategories }
   writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf-8')
 }
 
+// 字符串数组去重并保留顺序
 function uniqueStrings(list: string[]): string[] {
   return Array.from(new Set(list))
 }
 
+// 启动时初始化：定位数据文件、读入内存；并兼容旧版数据格式
 export function initStore(): void {
   dataPath = join(app.getPath('userData'), 'xiaobai-jizhang.json')
   try {
@@ -51,11 +57,13 @@ export function initStore(): void {
     }))
     customCategories = parsed.customCategories ?? []
   } catch {
+    // 文件不存在或解析失败时从空数据开始，避免应用启动即崩溃
     transactions = []
     customCategories = []
   }
 }
 
+// 新增一条流水：生成唯一 id、规整金额、记录创建/更新时间，写入内存并落盘，返回该记录
 export function createTransaction(input: TransactionInput): Transaction {
   const now = new Date().toISOString()
   const record: Transaction = {
@@ -74,8 +82,10 @@ export function createTransaction(input: TransactionInput): Transaction {
   return record
 }
 
+// 按条件筛选流水并按时间倒序返回；不传筛选条件时返回全部
 export function listTransactions(filter: TransactionFilter = {}): Transaction[] {
   const filtered = transactions.filter((t) => {
+    // 每个筛选条件都是可选的：没传（空值）就跳过该条件的判断
     if (filter.type && t.type !== filter.type) return false
     if (filter.categoryL1 && t.categoryL1 !== filter.categoryL1) return false
     if (filter.categoryL2 && t.categoryL2 !== filter.categoryL2) return false
@@ -83,12 +93,14 @@ export function listTransactions(filter: TransactionFilter = {}): Transaction[] 
     if (filter.endDate && t.date > filter.endDate) return false
     return true
   })
+  // 先按日期倒序；同一天的多笔再按创建时间倒序（新记的排前面）
   return filtered.sort((a, b) => {
     if (a.date !== b.date) return b.date.localeCompare(a.date)
     return b.createdAt.localeCompare(a.createdAt)
   })
 }
 
+// 修改指定 id 的流水：找不到则抛错，否则覆盖字段、更新 updatedAt 并落盘
 export function updateTransaction(id: string, input: TransactionInput): Transaction {
   const idx = transactions.findIndex((t) => t.id === id)
   if (idx === -1) {
@@ -109,18 +121,22 @@ export function updateTransaction(id: string, input: TransactionInput): Transact
   return updated
 }
 
+// 删除指定 id 的流水并落盘
 export function deleteTransaction(id: string): void {
   transactions = transactions.filter((t) => t.id !== id)
   persist()
 }
 
+// 返回自定义分类的副本，避免外部直接改动内部数组
 export function listCustomCategories(): CustomCategory[] {
   return customCategories.slice()
 }
 
+// 新增自定义分类：校验名称 / 小类 / 重名后写入内存并落盘
 export function createCustomCategory(input: CustomCategoryInput): CustomCategory {
   const name = input.name.trim()
   const children = uniqueStrings(input.children.map((s) => s.trim()).filter(Boolean))
+  // 逐项校验，不合法直接抛错，由上层（IPC）转成对用户的提示
   if (!name) throw new Error('分类名称不能为空')
   if (children.length === 0) throw new Error('至少需要添加一个小类')
   if (presetL1Names(input.type).includes(name)) throw new Error('不能使用预置分类的名称')
@@ -133,6 +149,7 @@ export function createCustomCategory(input: CustomCategoryInput): CustomCategory
   return category
 }
 
+// 修改自定义分类：支持改一级名、改小类名（小类改名通过 renames 级联改写历史流水）
 export function updateCustomCategory(id: string, input: CustomCategoryUpdate): CustomCategory {
   const idx = customCategories.findIndex((c) => c.id === id)
   if (idx === -1) throw new Error('分类不存在')
@@ -143,6 +160,7 @@ export function updateCustomCategory(id: string, input: CustomCategoryUpdate): C
   if (!name) throw new Error('分类名称不能为空')
   if (children.length === 0) throw new Error('至少需要添加一个小类')
 
+  // 只有一级名发生变化时，才需要检查是否与预置分类或其它自定义分类重名
   if (name !== old.name) {
     if (presetL1Names(old.type).includes(name)) throw new Error('不能使用预置分类的名称')
     if (customCategories.some((c) => c.type === old.type && c.name === name && c.id !== id)) {
@@ -150,18 +168,21 @@ export function updateCustomCategory(id: string, input: CustomCategoryUpdate): C
     }
   }
 
+  // renames 是「旧小类名 → 新小类名」的映射，用来级联改写历史流水里的小类名
   const renames = (input.renames ?? []).filter((r) => r.from && r.to && r.from !== r.to)
   for (const r of renames) {
     if (!old.children.includes(r.from)) throw new Error('要修改的小类不存在')
+    // 约束：改名后的新小类名必须已存在于最终的 children 列表里，否则等于凭空多出一个小类
     if (!children.includes(r.to)) throw new Error('小类名称无效')
   }
+  // from 或 to 不能有重复：否则一条旧记录会对应到两个新名，产生歧义
   const froms = renames.map((r) => r.from)
   const tos = renames.map((r) => r.to)
   if (new Set(froms).size !== froms.length || new Set(tos).size !== tos.length) {
     throw new Error('小类名称重复')
   }
 
-  // 被移除的小类若仍被流水使用则禁止删除
+  // 被移除的小类若仍被流水使用则禁止删除，防止历史记录变成「孤儿」
   const renamedFrom = new Set(froms)
   for (const child of old.children) {
     if (children.includes(child) || renamedFrom.has(child)) continue
@@ -171,11 +192,12 @@ export function updateCustomCategory(id: string, input: CustomCategoryUpdate): C
     if (used) throw new Error(`小类「${child}」仍被使用，无法删除`)
   }
 
-  // 级联更新流水记录（一级改名 + 二级改名）
+  // 级联更新流水记录：一级名统一替换；小类名按 renameMap 逐个映射
   const renameMap = new Map(renames.map((r) => [r.from, r.to]))
   const l1Changed = name !== old.name
   if (l1Changed || renameMap.size > 0) {
     transactions = transactions.map((t) => {
+      // 只处理属于该分类、且一级名匹配的流水，其余原样保留
       if (t.type !== old.type || t.categoryL1 !== old.name) return t
       const nextL1 = l1Changed ? name : t.categoryL1
       const nextL2 = renameMap.get(t.categoryL2) ?? t.categoryL2
@@ -190,6 +212,7 @@ export function updateCustomCategory(id: string, input: CustomCategoryUpdate): C
   return updated
 }
 
+// 删除自定义分类：仍被流水使用的分类禁止删除，否则会留下指向不存在分类的历史记录
 export function deleteCustomCategory(id: string): void {
   const category = customCategories.find((c) => c.id === id)
   if (!category) throw new Error('分类不存在')
