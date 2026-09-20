@@ -18,6 +18,8 @@ interface StoreData {
   customCategories: CustomCategory[]
 }
 
+type NormalizedTransactionInput = Omit<TransactionInput, 'note'> & { note: string }
+
 export interface StoreInitResult {
   recovered: boolean
   backupPath?: string
@@ -90,7 +92,7 @@ function normalizeRenames(value: unknown): Array<{ from: string; to: string }> {
   })
 }
 
-function normalizeTransactionInput(input: TransactionInput): TransactionInput {
+function normalizeTransactionInput(input: TransactionInput): NormalizedTransactionInput {
   if (!input || typeof input !== 'object') throw new Error('流水数据格式无效')
   if (input.type !== 'expense' && input.type !== 'income') throw new Error('收支类型无效')
   const note = input.note ?? ''
