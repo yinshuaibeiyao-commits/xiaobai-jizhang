@@ -351,6 +351,26 @@ body {
   padding: 40px 0;
 }
 
+.error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: #991b1b;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius);
+  padding: 10px 14px;
+}
+
+.error-banner button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 20px;
+  cursor: pointer;
+}
+
 /* Category manager */
 .cat-manager-hint {
   color: var(--text-muted);

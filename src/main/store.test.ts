@@ -12,11 +12,29 @@ vi.mock('electron', () => ({
 vi.mock('fs', () => ({
   readFileSync: (p: string) => {
     const data = mem.files.get(p)
-    if (data === undefined) throw new Error('ENOENT')
+    if (data === undefined) {
+      const error = new Error('ENOENT') as NodeJS.ErrnoException
+      error.code = 'ENOENT'
+      throw error
+    }
     return data
   },
   writeFileSync: (p: string, data: string) => {
     mem.files.set(p, data)
+  },
+  renameSync: (from: string, to: string) => {
+    const data = mem.files.get(from)
+    if (data === undefined) throw new Error('临时文件不存在')
+    mem.files.set(to, data)
+    mem.files.delete(from)
+  },
+  unlinkSync: (p: string) => {
+    mem.files.delete(p)
+  },
+  copyFileSync: (from: string, to: string) => {
+    const data = mem.files.get(from)
+    if (data === undefined) throw new Error('源文件不存在')
+    mem.files.set(to, data)
   }
 }))
 
@@ -69,6 +87,14 @@ describe('createTransaction / listTransactions', () => {
     expect(t.amount).toBe(0.3)
   })
 
+  it('拒绝非法金额、日期和过长备注', () => {
+    expect(() => createTransaction(expense({ amount: Number.NaN }))).toThrow('有效数字')
+    expect(() => createTransaction(expense({ amount: -1 }))).toThrow('有效数字')
+    expect(() => createTransaction(expense({ date: '2026-02-30' }))).toThrow('有效日期')
+    expect(() => createTransaction(expense({ note: 'x'.repeat(501) }))).toThrow('500')
+    expect(() => createTransaction(expense({ categoryL2: '不存在的小类' }))).toThrow('所选分类不存在')
+  })
+
   it('按类型 / 分类 / 日期区间筛选', () => {
     createTransaction(expense({ amount: 5, date: '2026-08-01', categoryL2: '早餐' }))
     createTransaction(expense({ amount: 8, date: '2026-08-02', categoryL2: '午餐' }))
@@ -77,6 +103,12 @@ describe('createTransaction / listTransactions', () => {
     expect(listTransactions({ type: 'income' })).toHaveLength(1)
     expect(listTransactions({ categoryL2: '早餐' })).toHaveLength(1)
     expect(listTransactions({ startDate: '2026-08-02', endDate: '2026-08-02' })).toHaveLength(1)
+  })
+
+  it('拒绝开始日期晚于结束日期的筛选', () => {
+    expect(() => listTransactions({ startDate: '2026-08-03', endDate: '2026-08-01' })).toThrow(
+      '开始日期不能晚于结束日期'
+    )
   })
 
   it('列表按日期倒序排列', () => {
@@ -125,6 +157,12 @@ describe('自定义分类', () => {
     expect(() => createCustomCategory({ type: 'expense', name: '餐饮', children: ['x'] })).toThrow('不能使用预置分类的名称')
   })
 
+  it('小类名称过长时抛错', () => {
+    expect(() =>
+      createCustomCategory({ type: 'expense', name: '宠物', children: ['x'.repeat(41)] })
+    ).toThrow('小类名称不能超过')
+  })
+
   it('删除仍被流水使用的分类抛错', () => {
     const c = createCustomCategory({ type: 'expense', name: '宠物', children: ['猫粮'] })
     createTransaction(expense({ categoryL1: '宠物', categoryL2: '猫粮' }))
@@ -169,6 +207,17 @@ describe('自定义分类的边界校验', () => {
       })
     ).toThrow('小类名称重复')
   })
+
+  it('拒绝来自 IPC 的非法小类改名数据', () => {
+    const c = createCustomCategory({ type: 'expense', name: '宠物', children: ['猫粮'] })
+    expect(() =>
+      updateCustomCategory(c.id, {
+        name: '宠物',
+        children: ['猫粮'],
+        renames: [{ from: '', to: '主食' }]
+      })
+    ).toThrow('原小类名称不能为空')
+  })
 })
 
 describe('initStore 兼容旧数据', () => {
@@ -199,9 +248,18 @@ describe('initStore 兼容旧数据', () => {
 
   it('数据文件损坏时回退为空数据', () => {
     mem.files.set(dataPath(), 'not-valid-json{{{')
-    initStore()
+    const result = initStore()
     expect(listTransactions()).toHaveLength(0)
     expect(listCustomCategories()).toHaveLength(0)
+    expect(result.recovered).toBe(true)
+    expect(result.backupPath).toContain('.corrupt-')
+    expect(mem.files.get(result.backupPath!)).toBe('not-valid-json{{{')
+  })
+
+  it('持久化使用临时文件替换且不遗留临时文件', () => {
+    createTransaction(expense())
+    expect(mem.files.has(`${dataPath()}.tmp`)).toBe(false)
+    expect(JSON.parse(mem.files.get(dataPath())!).transactions).toHaveLength(1)
   })
 })
 

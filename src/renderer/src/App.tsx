@@ -11,6 +11,10 @@ import type {
   CustomCategory
 } from '@shared/types'
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
 export default function App(): JSX.Element {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([])
@@ -19,6 +23,7 @@ export default function App(): JSX.Element {
   const [filterL1, setFilterL1] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [error, setError] = useState('')
 
   // 把筛选条件整理成传给主进程的 filter 对象：空字符串视为「不限」，转成 undefined
   const filter: TransactionFilter = useMemo(
@@ -32,13 +37,23 @@ export default function App(): JSX.Element {
   )
 
   const load = useCallback(async () => {
-    const data = await window.api.listTransactions(filter)
-    setTransactions(data)
+    try {
+      const data = await window.api.listTransactions(filter)
+      setTransactions(data)
+      setError('')
+    } catch (loadError) {
+      setError(`流水加载失败：${errorMessage(loadError)}`)
+    }
   }, [filter])
 
   const loadCategories = useCallback(async () => {
-    const data = await window.api.listCustomCategories()
-    setCustomCategories(data)
+    try {
+      const data = await window.api.listCustomCategories()
+      setCustomCategories(data)
+      setError('')
+    } catch (loadError) {
+      setError(`分类加载失败：${errorMessage(loadError)}`)
+    }
   }, [])
 
   useEffect(() => {
@@ -60,21 +75,34 @@ export default function App(): JSX.Element {
 
   // 提交记账表单：编辑态则更新，否则新增；完成后重新拉取列表
   async function handleSubmit(input: TransactionInput): Promise<void> {
-    if (editing) {
-      await window.api.updateTransaction(editing.id, input)
-      setEditing(null)
-    } else {
-      await window.api.createTransaction(input)
+    try {
+      if (editing) {
+        await window.api.updateTransaction(editing.id, input)
+        setEditing(null)
+      } else {
+        await window.api.createTransaction(input)
+      }
+      await load()
+    } catch (saveError) {
+      const message = `保存失败：${errorMessage(saveError)}`
+      setError(message)
+      window.alert(message)
+      throw saveError
     }
-    await load()
   }
 
   // 删除流水：先二次确认，删除后刷新列表；若删的是正在编辑的那条，一并退出编辑态
   async function handleDelete(id: string): Promise<void> {
     if (!window.confirm('确定删除这条记录吗？')) return
-    await window.api.deleteTransaction(id)
-    if (editing?.id === id) setEditing(null)
-    await load()
+    try {
+      await window.api.deleteTransaction(id)
+      if (editing?.id === id) setEditing(null)
+      await load()
+    } catch (deleteError) {
+      const message = `删除失败：${errorMessage(deleteError)}`
+      setError(message)
+      window.alert(message)
+    }
   }
 
   async function handleCategoriesChanged(): Promise<void> {
@@ -104,6 +132,14 @@ export default function App(): JSX.Element {
       </header>
 
       <main className="app-main">
+        {error && (
+          <div className="error-banner" role="alert">
+            <span>{error}</span>
+            <button type="button" onClick={() => setError('')} aria-label="关闭错误提示">
+              ×
+            </button>
+          </div>
+        )}
         <section className="panel">
           <h2>{editing ? '修改记录' : '记一笔'}</h2>
           <EntryForm

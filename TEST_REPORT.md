@@ -1,36 +1,32 @@
-# 单元测试报告
+# 测试说明
 
-- 生成时间：2026-08-28
-- 测试对象：`src/shared/categories.ts`、`src/main/store.ts`
-- 执行命令：`unset ELECTRON_RUN_AS_NODE; npx vitest run --coverage`
+## 自动化门禁
 
-## 结果总览
+GitHub Actions 在 Windows + Node.js 22 环境执行：
 
-- 测试文件：2 个，用例：31 个，通过：31 个，失败：0 个 ✅
+```bash
+npm ci
+npm run typecheck
+npm test
+npm run build
+```
 
-| 测试文件 | 用例数 | 结果 |
-|---|---|---|
-| `src/shared/categories.test.ts` | 8 | 全部通过 |
-| `src/main/store.test.ts` | 23 | 全部通过 |
+工作流文件：`.github/workflows/ci.yml`。
 
-## 覆盖率
+## 测试清单
 
-| 文件 | 语句 | 分支 | 函数 | 行 |
-|---|---|---|---|---|
-| `src/shared/categories.ts` | 100% | 100% | 100% | 100% |
-| `src/main/store.ts` | 99.36% | 81.52% | 100% | 99.36% |
-| **总体（按真实语句数加权）** | **99.48%** | **83.81%** | **100%** | **99.48%** |
+当前共有 2 个测试文件、36 个测试用例：
 
-- 分项明细：语句 193/194，分支 88/105，函数 17/17，行 193/194。
-- 唯一未覆盖：`store.ts` 第 99 行「同日期记录按 createdAt 排序」的平局分支——受 `createdAt` 毫秒时间戳粒度限制，无法稳定构造两笔同毫秒记录，故未单独断言，属可接受的边界遗漏。
-- 说明：本次运行环境为 Vitest v3.2.7 + Vite 5，覆盖率文本表与 `coverage/index.html` 数字一致（store.ts 语句 156/157、categories.ts 语句 37/37），无此前 v4 工具的重复统计问题。
+| 文件 | 用例数 | 范围 |
+|---|---:|---|
+| `src/main/store.test.ts` | 28 | 流水 CRUD、筛选排序、运行时校验、分类级联、旧数据迁移、损坏备份、原子写入 |
+| `src/shared/categories.test.ts` | 8 | 预设分类、合并分类、子类查询 |
 
-## 失败用例
+## 本地运行
 
-无。
+```bash
+npm run check
+npm run test:coverage
+```
 
-## 结论
-
-全部 31 个用例通过，核心逻辑已充分覆盖：金额四舍五入、流水筛选与排序、增删改、自定义分类的创建/更新/删除/级联改名、旧数据迁移与文件损坏容错。可正常合入。
-
-> 背景：本次为 Electron 33 → 44.0.0（运行时高危漏洞修复）升级后的复测。typecheck 与 build 已先行通过，本次单元测试再次确认业务逻辑未受升级影响，31 个用例全部通过，覆盖率与升级前一致。业务源码与测试用例均未改动。
+HTML 覆盖率报告生成在 `coverage/index.html`。最终通过状态以仓库首页 CI 徽章和 Actions 运行记录为准。

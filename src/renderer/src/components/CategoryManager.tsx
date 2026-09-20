@@ -11,6 +11,10 @@ interface ChildRow {
   value: string
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
 export default function CategoryManager({ categories, onChange }: Props): JSX.Element {
   const [viewType, setViewType] = useState<EntryType>('expense')
   const [formOpen, setFormOpen] = useState(false)
@@ -85,7 +89,7 @@ export default function CategoryManager({ categories, onChange }: Props): JSX.El
       closeForm()
       await onChange()
     } catch (e) {
-      window.alert((e as Error).message)
+      window.alert(errorMessage(e))
     }
   }
 
@@ -96,7 +100,7 @@ export default function CategoryManager({ categories, onChange }: Props): JSX.El
       await window.api.deleteCustomCategory(id)
       await onChange()
     } catch (e) {
-      window.alert((e as Error).message)
+      window.alert(errorMessage(e))
     }
   }
 

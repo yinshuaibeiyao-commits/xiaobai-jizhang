@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "check": "npm run typecheck && npm test && npm run build",
     "build:win": "electron-vite build && electron-builder --win",
     "build:mac": "electron-vite build && electron-builder --mac"
   },
